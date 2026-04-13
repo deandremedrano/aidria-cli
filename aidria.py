@@ -7,7 +7,7 @@ Author: Deandre Medrano
 Usage:
   aidria test "Mail app"
   aidria audit "Safari login screen"
-  aidria radar "bug description"
+  aidria feedback "bug description"
   aidria matrix "feature1, feature2, feature3"
   aidria xctest "User Authentication"
   aidria predict "code change description"
@@ -29,8 +29,7 @@ from typing import Optional
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = "qwen2.5-coder:latest"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 # ── Colors ─────────────────────────────────────────────────────────────────────
 
@@ -77,12 +76,12 @@ def get_system_info():
 
 # ── AI Engine ───────────────────────────────────────────────────────────────────
 
-def ask_ai(system_prompt: str, user_message: str, stream: bool = True, model: str = None) -> str:
+def ask_ai(system_prompt: str, user_message: str, stream: bool = True, model: str = "mistral-nemo:latest") -> str:
     try:
         response = requests.post(
             OLLAMA_URL,
             json={
-                "model": model or MODEL,
+                "model": model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -154,25 +153,153 @@ def save_report(content: str, filename: str) -> str:
 
 # ── Commands ────────────────────────────────────────────────────────────────────
 
+def cmd_feedback(description: str, save: bool = True):
+    """Generate a perfectly formatted Apple Feedback Assistant report."""
+    print_banner()
+    print_divider("APPLE FEEDBACK ASSISTANT")
+
+    system = """You are a senior Apple QA engineer with 15 years of experience writing exceptionally detailed and impactful bug reports for Apple's Feedback Assistant. You know exactly what Apple engineers need to see to reproduce, understand, and fix issues.
+
+Your feedback reports are so detailed and well-written that Apple engineers can reproduce the issue in under 2 minutes.
+
+Generate a complete Apple Feedback Assistant report in this exact format:
+
+================================================================================
+APPLE FEEDBACK ASSISTANT REPORT
+Submitted via: Feedback Assistant (feedbackassistant.apple.com)
+Reporter: Deandre Medrano
+================================================================================
+
+FEEDBACK TYPE
+-------------
+Bug Report
+
+PRODUCT
+-------
+[Affected Apple product — e.g. macOS 26.5, iOS 18.4, Safari 18]
+
+TITLE
+-----
+[Clear, specific one-line title — what breaks, where, and under what condition]
+
+DESCRIPTION
+-----------
+[2-3 sentences clearly describing what the bug is, when it occurs, and why it matters to users]
+
+STEPS TO REPRODUCE
+------------------
+Be extremely specific. Include exact UI element names, button labels, and menu paths.
+
+1. [Very specific step with exact UI element names]
+2. [Exact step]
+3. [Exact step]
+4. [Exact step]
+5. [Exact step — what triggers the bug]
+
+EXPECTED BEHAVIOR
+-----------------
+[What should happen — be specific about the correct behavior]
+
+ACTUAL BEHAVIOR
+---------------
+[Exactly what happens instead — be precise about the incorrect behavior]
+
+FREQUENCY
+---------
+[Always / Most of the time (>75%) / Sometimes (25-75%) / Rarely (<25%)]
+[Any pattern or conditions that affect frequency]
+
+IMPACT
+------
+Severity: [Critical / High / Medium / Low]
+
+[Who is affected — all users, specific configurations, etc.]
+[What workflow is blocked or degraded]
+[Business impact if applicable]
+
+ENVIRONMENT
+-----------
+OS:              macOS [version] ([build number if known])
+Device:          [Device model]
+Chip:            [Apple Silicon / Intel]
+RAM:             [Amount]
+App Version:     [If applicable]
+Network:         [WiFi / Ethernet / Offline if relevant]
+Reproducible on: [List of devices/OS versions if tested on multiple]
+
+ADDITIONAL CONTEXT
+------------------
+[Any additional technical details, patterns noticed, workarounds discovered, or related issues]
+
+WORKAROUND
+----------
+[If a workaround exists, describe it clearly. If none, state "No workaround found."]
+
+ATTACHMENTS RECOMMENDED
+-----------------------
+[ ] Screen recording showing the issue occurring
+[ ] Screenshot of the actual behavior
+[ ] Console logs from the time of the issue (Console.app)
+[ ] Sysdiagnose (if crash or system-level issue)
+[ ] Sample of affected file (if file-related issue)
+
+SUGGESTED FIX AREA
+------------------
+[Your technical hypothesis about where the bug likely lives in the codebase or system]
+
+================================================================================
+FEEDBACK PORTFOLIO NOTE
+This report was prepared using AIdria CLI — Apple QA Feedback Portfolio Tool
+Built by Deandre Medrano | github.com/deandremedrano
+================================================================================"""
+
+    sysinfo = get_system_info()
+
+    print_step("Generating Apple Feedback Assistant report...")
+    print(dim("  Crafting detailed reproduction steps"))
+    print(dim("  Auto-detecting system environment"))
+    print(dim("  Optimizing for Apple engineer readability\n"))
+
+    user_message = f"""Generate a detailed Apple Feedback Assistant report for this issue:
+
+ISSUE DESCRIPTION:
+{description}
+
+REPORTER ENVIRONMENT:
+- OS: macOS {sysinfo['os_version']}
+- Machine: {sysinfo['machine']} (Apple Silicon M3)
+- RAM: 16GB
+- Browser: {sysinfo['browser']}
+- Python: {sysinfo['python']}
+- Date: {sysinfo['date']}
+
+Make this report so detailed and clear that an Apple engineer can reproduce it in under 2 minutes. Be specific about UI element names, exact steps, and technical details."""
+
+    content = ask_ai(system, user_message)
+
+    if save:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = description[:30].lower().replace(" ", "_").replace('"', "")
+        filename = f"feedback_{safe_name}_{timestamp}.txt"
+        filepath = save_report(content, filename)
+        print(f"\n{green('✓')} Feedback report saved to: {bold(filepath)}")
+        print(dim("  Copy and paste this into feedbackassistant.apple.com"))
+        print(dim("  Attach screen recording and console logs for best results"))
+
+    print_divider()
+    print_success("Apple Feedback report generated")
+    print(dim("  Submit at: feedbackassistant.apple.com"))
+    print(dim("  Tip: Attach a screen recording to dramatically increase response rate"))
+
+
 def cmd_convert(requirement: str, save: bool = False):
-    """Natural Language Test Converter — converts plain English to XCTest Swift code."""
+    """Natural Language Test Converter."""
     print_banner()
     print_divider("NATURAL LANGUAGE TEST CONVERTER")
 
     system = """You are an elite Apple QA automation engineer with 15 years of experience writing XCTest and XCUITest code at Apple.
 
-Your job is to convert plain English product requirements into complete, production-ready XCTest Swift code.
-
-RULES:
-- Read the plain English requirement carefully
-- Extract every testable behavior from it
-- Generate complete XCTest Swift code with proper structure
-- Use XCUIApplication for UI tests
-- Use XCTAssert family for assertions
-- Add clear comments explaining what each test verifies
-- Include both happy path and edge case tests
-- Follow Apple's Swift style guide exactly
-- Output ONLY Swift code — no markdown, no explanations before or after
+Convert plain English product requirements into complete, production-ready XCTest Swift code.
 
 Always use this exact file structure:
 
@@ -191,10 +318,8 @@ import XCTest
 
 final class [FeatureName]Tests: XCTestCase {
 
-    // MARK: - Properties
     var app: XCUIApplication!
 
-    // MARK: - Setup & Teardown
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -206,24 +331,22 @@ final class [FeatureName]Tests: XCTestCase {
     }
 
     // MARK: - Happy Path Tests
-    func test[HappyPath1]() throws {
-        // Requirement: [which part of the requirement this covers]
+    func test[HappyPath]() throws {
+        // Requirement: [which part this covers]
         // Arrange
         // Act
         // Assert
     }
 
     // MARK: - Edge Case Tests
-    func test[EdgeCase1]() throws {
-        // Edge case: [description]
+    func test[EdgeCase]() throws {
         // Arrange
         // Act
         // Assert
     }
 
     // MARK: - Negative Tests
-    func test[NegativeCase1]() throws {
-        // Negative: [description]
+    func test[Negative]() throws {
         // Arrange
         // Act
         // Assert
@@ -231,7 +354,6 @@ final class [FeatureName]Tests: XCTestCase {
 
     // MARK: - Accessibility Tests
     func test[Feature]IsAccessible() throws {
-        // Verify VoiceOver and accessibility compliance
         // Arrange
         // Act
         // Assert
@@ -240,7 +362,6 @@ final class [FeatureName]Tests: XCTestCase {
     // MARK: - Performance Tests
     func test[Feature]Performance() throws {
         measure {
-            // Performance measurement
         }
     }
 }"""
@@ -253,26 +374,17 @@ final class [FeatureName]Tests: XCTestCase {
 
     sysinfo = get_system_info()
 
-    user_message = f"""Convert this plain English requirement to complete XCTest Swift code:
+    content = ask_ai(system, f"""Convert this plain English requirement to complete XCTest Swift code:
 
-REQUIREMENT:
-"{requirement}"
+REQUIREMENT: "{requirement}"
 
-Generate comprehensive XCTest code covering:
-1. Happy path — the main success scenario
-2. Edge cases — boundary conditions and unusual inputs
-3. Negative tests — what should fail or be rejected
-4. Accessibility — VoiceOver and Dynamic Type compliance
-5. Performance — measure key operations
-
+Generate comprehensive XCTest code covering happy path, edge cases, negative tests, accessibility, and performance.
 Date: {sysinfo['date']}
-Engineer: Deandre Medrano"""
-
-    content = ask_ai(system, user_message, model="qwen2.5-coder:latest")
+Engineer: Deandre Medrano""", model="qwen2.5-coder:latest")
 
     if save:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_name = requirement[:30].lower().replace(" ", "_").replace('"', "").replace("'", "")
+        safe_name = requirement[:30].lower().replace(" ", "_").replace('"', "")
         filename = f"xctest_converted_{safe_name}_{timestamp}.swift"
         filepath = save_report(content, filename)
         print(f"\n{green('✓')} XCTest file saved to: {bold(filepath)}")
@@ -282,8 +394,6 @@ Engineer: Deandre Medrano"""
 
     print_divider()
     print_success("Requirement converted to XCTest Swift code")
-    print(dim(f"  Original: \"{requirement}\""))
-    print(dim("  Output: Complete XCTest suite ready for Xcode"))
 
 
 def cmd_predict(change_description: str, save: bool = False):
@@ -291,20 +401,14 @@ def cmd_predict(change_description: str, save: bool = False):
     print_banner()
     print_divider("DEFECT PREDICTION ENGINE")
 
-    system = """You are a world-class Apple QA lead and software engineering expert with 20 years of experience predicting software defects at Apple.
+    system = """You are a world-class Apple QA lead with 20 years of experience predicting software defects.
 
-When given a description of code changes, analyze and predict:
-1. Which areas are most likely to contain bugs
-2. The probability and severity of defects in each area
-3. Specific tests that should be run immediately
-4. Hidden dependencies that could cause unexpected failures
-
-Format your response EXACTLY like this:
+Analyze code changes and predict defects. Format exactly like this:
 
 ## Defect Prediction Report
 **Change:** [brief summary]
 **Analysis Date:** [today]
-**Analyst:** AIdria Defect Prediction Engine v1.2.0
+**Analyst:** AIdria Defect Prediction Engine v1.3.0
 **Overall Risk Level:** [Critical/High/Medium/Low]
 **Confidence Score:** [X]%
 
@@ -363,26 +467,15 @@ Format your response EXACTLY like this:
 
 ### Executive Summary
 
-[2-3 sentences summarizing risk and recommendation]"""
+[2-3 sentences]"""
 
     print_step("Analyzing code changes for defect prediction...")
-    print(dim("  Running pattern analysis on change description"))
+    print(dim("  Running pattern analysis"))
     print(dim("  Calculating blast radius and hidden dependencies"))
-    print(dim("  Generating risk scores and test recommendations\n"))
+    print(dim("  Generating risk scores\n"))
 
     sysinfo = get_system_info()
-
-    user_message = f"""Analyze this code change and predict defects:
-
-CHANGE DESCRIPTION:
-{change_description}
-
-ENVIRONMENT:
-- Platform: Apple macOS {sysinfo['os_version']}
-- Date: {sysinfo['date']}
-- Analyst: Deandre Medrano"""
-
-    content = ask_ai(system, user_message, model="mistral-nemo:latest")
+    content = ask_ai(system, f"Analyze this code change:\n\n{change_description}\n\nDate: {sysinfo['date']}\nAnalyst: Deandre Medrano")
 
     if save:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -392,15 +485,13 @@ ENVIRONMENT:
 
     print_divider()
     print_success("Defect prediction complete")
-    print(dim("  Tip: Run flagged tests before approving this change for release"))
 
 
 def cmd_test(app_name: str, save: bool = False):
     print_banner()
     print_divider(f"TEST PLAN — {app_name.upper()}")
 
-    system = """You are a senior Apple QA engineer with 15 years of experience.
-Generate a comprehensive, professional test plan. Format exactly like this:
+    system = """You are a senior Apple QA engineer. Generate a comprehensive test plan.
 
 ## Test Plan: [App Name]
 **Generated:** [date]
@@ -437,7 +528,7 @@ Generate a comprehensive, professional test plan. Format exactly like this:
     print_step(f"Generating test plan for {bold(app_name)}...")
     print(dim("  Running on Mistral Nemo 12B locally\n"))
 
-    content = ask_ai(system, f"Generate a comprehensive test plan for Apple's {app_name} app.", model="mistral-nemo:latest")
+    content = ask_ai(system, f"Generate a comprehensive test plan for Apple's {app_name} app.")
 
     if save:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -453,17 +544,14 @@ def cmd_audit(target: str, save: bool = False):
     print_banner()
     print_divider(f"ACCESSIBILITY AUDIT — {target.upper()}")
 
-    system = """You are an Apple accessibility expert with 15 years of experience.
-Perform a detailed accessibility audit against WCAG 2.1 and Apple Human Interface Guidelines.
-
-Format exactly like this:
+    system = """You are an Apple accessibility expert. Audit against WCAG 2.1 and Apple HIG.
 
 ## Accessibility Audit: [Target]
 **Date:** [date]
 **Auditor:** Deandre Medrano
 
 ### Score: [X]/100 — Grade: [A/B/C/D/F]
-[One sentence summary]
+[Summary]
 
 ### Critical Violations
 | ID | WCAG | Issue | Element | Fix |
@@ -491,7 +579,7 @@ Format exactly like this:
 - [ ] VoiceOver navigation
 - [ ] Dynamic Type scaling
 - [ ] Color contrast ratios
-- [ ] Touch target sizes (minimum 44x44pt)
+- [ ] Touch target sizes (44x44pt minimum)
 - [ ] Keyboard navigation
 - [ ] Reduce Motion support
 - [ ] High Contrast mode"""
@@ -499,7 +587,7 @@ Format exactly like this:
     print_step(f"Running accessibility audit for {bold(target)}...")
     print(dim("  Checking WCAG 2.1 + Apple HIG compliance\n"))
 
-    content = ask_ai(system, f"Perform a comprehensive accessibility audit for: {target}", model="mistral-nemo:latest")
+    content = ask_ai(system, f"Perform a comprehensive accessibility audit for: {target}")
 
     if save:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -509,94 +597,6 @@ Format exactly like this:
 
     print_divider()
     print_success(f"Accessibility audit complete for {target}")
-
-
-def cmd_radar(description: str, save: bool = True):
-    print_banner()
-    print_divider("RADAR BUG REPORT")
-
-    system = """You are a senior Apple QA engineer. Generate a professional Radar-style bug report.
-
-Format exactly like this:
-
-================================================================================
-RADAR BUG REPORT
-Apple QA Portfolio | Filed by Deandre Medrano
-================================================================================
-
-SUMMARY
--------
-[One clear sentence]
-
-METADATA
---------
-Radar ID:    FB[8 random digits]
-Date:        [today]
-Reporter:    Deandre Medrano
-Severity:    [Critical/High/Medium/Low]
-Priority:    [P1/P2/P3/P4]
-Status:      Open
-Component:   [affected component]
-
-STEPS TO REPRODUCE
-------------------
-1.
-2.
-3.
-
-EXPECTED RESULT
----------------
-[What should happen]
-
-ACTUAL RESULT
--------------
-[What actually happens]
-
-IMPACT
-------
-[Who is affected]
-
-POSSIBLE ROOT CAUSE
--------------------
-[Technical hypothesis]
-
-RECOMMENDED FIX
----------------
-[Suggested fix]
-
-ATTACHMENTS NEEDED
-------------------
-[ ] Screenshot
-[ ] Screen recording
-[ ] Console logs
-[ ] Crash report
-
-================================================================================"""
-
-    sysinfo = get_system_info()
-    print_step("Generating Radar bug report...")
-    print(dim(f"  OS: macOS {sysinfo['os_version']} | Machine: {sysinfo['machine']}\n"))
-
-    user_message = f"""Generate a Radar bug report for:
-
-{description}
-
-Environment:
-- OS: macOS {sysinfo['os_version']}
-- Machine: {sysinfo['machine']} (Apple Silicon)
-- Browser: {sysinfo['browser']}
-- Date: {sysinfo['date']}"""
-
-    content = ask_ai(system, user_message, model="mistral-nemo:latest")
-
-    if save:
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"radar_{timestamp}.txt"
-        filepath = save_report(content, filename)
-        print(f"\n{green('✓')} Radar saved to: {bold(filepath)}")
-
-    print_divider()
-    print_success("Radar report filed successfully")
 
 
 def cmd_matrix(features_input: str, save: bool = False):
@@ -636,9 +636,9 @@ Legend: ● Required | ◐ Recommended | ○ Optional | — Not Applicable
 - Recommended team size: [number]"""
 
     print_step("Building test matrix...")
-    print(dim("  Mapping coverage across Apple devices and OS versions\n"))
+    print(dim("  Mapping across Apple devices and OS versions\n"))
 
-    content = ask_ai(system, f"Generate a test matrix for:\n\n{features_input}", model="mistral-nemo:latest")
+    content = ask_ai(system, f"Generate a test matrix for:\n\n{features_input}")
 
     if save:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -655,7 +655,7 @@ def cmd_xctest(feature: str, save: bool = False):
     print_divider(f"XCTEST GENERATOR — {feature.upper()}")
 
     system = """You are an expert Apple QA automation engineer.
-Generate complete, production-ready XCTest code in Swift.
+Generate complete production-ready XCTest Swift code.
 
 import XCTest
 
@@ -673,7 +673,7 @@ final class [FeatureName]Tests: XCTestCase {
         app = nil
     }
 
-    func test[TestName]() throws {
+    func test[Name]() throws {
         // Arrange
         // Act
         // Assert
@@ -733,7 +733,7 @@ def cmd_brief():
     print_step("Generating your morning briefing...")
     print(dim(f"  {sysinfo['date']}\n"))
 
-    content = ask_ai(system, f"Generate a morning QA briefing for {sysinfo['date']}. Deandre is preparing for Apple QA engineering roles.", model="mistral-nemo:latest")
+    content = ask_ai(system, f"Generate a morning QA briefing for {sysinfo['date']}. Deandre is preparing for Apple QA engineering roles.")
 
     print_divider()
     print_success("Have a productive day, Deandre!")
@@ -745,7 +745,7 @@ def cmd_help():
 
   {cyan('aidria test')} {yellow('"App Name"')}                Generate a complete test plan
   {cyan('aidria audit')} {yellow('"Target"')}                 Run an accessibility audit
-  {cyan('aidria radar')} {yellow('"Bug description"')}        File a Radar bug report
+  {cyan('aidria feedback')} {yellow('"Bug description"')}     Generate Apple Feedback Assistant report
   {cyan('aidria matrix')} {yellow('"Feature list"')}          Build a test coverage matrix
   {cyan('aidria xctest')} {yellow('"Feature"')}               Generate XCTest Swift code
   {cyan('aidria predict')} {yellow('"Code change"')}          Predict defects from code changes
@@ -761,21 +761,23 @@ def cmd_help():
 
   {dim('$ aidria test "Mail app" --save')}
   {dim('$ aidria audit "Safari" --save')}
-  {dim('$ aidria radar "Login button unresponsive on iPhone 16" --save')}
+  {dim('$ aidria feedback "Safari crashes when opening PDF on macOS 26.5" --save')}
   {dim('$ aidria matrix "Face ID, Push Notifications, Dark Mode"')}
   {dim('$ aidria xctest "User Authentication" --save')}
   {dim('$ aidria predict "Refactored Mail compose window" --save')}
   {dim('$ aidria convert "Users should be able to log in with Face ID" --save')}
   {dim('$ aidria brief')}
 
+  {bold('FEEDBACK PORTFOLIO')}
+
+  {dim('All feedback reports saved to: ~/aidria-reports/')}
+  {dim('Submit at: feedbackassistant.apple.com')}
+  {dim('Tip: Attach a screen recording to increase Apple response rate')}
+
   {bold('MODELS')}
 
   {dim('Coding tasks  → Qwen2.5 Coder (xctest, convert)')}
-  {dim('QA tasks      → Mistral Nemo 12B (test, audit, radar, predict, brief)')}
-
-  {bold('REPORTS')}
-
-  {dim('All saved reports go to: ~/aidria-reports/')}
+  {dim('QA tasks      → Mistral Nemo 12B (test, audit, feedback, predict, brief)')}
 
   {bold('ABOUT')}
 
@@ -804,17 +806,17 @@ def main():
     save = args.save
 
     commands = {
-        "test":    lambda: cmd_test(target, save) if target else print_error('Example: aidria test "Mail app"'),
-        "audit":   lambda: cmd_audit(target, save) if target else print_error('Example: aidria audit "Safari"'),
-        "radar":   lambda: cmd_radar(target, save) if target else print_error('Example: aidria radar "Login button unresponsive"'),
-        "matrix":  lambda: cmd_matrix(target, save) if target else print_error('Example: aidria matrix "Face ID, Dark Mode"'),
-        "xctest":  lambda: cmd_xctest(target, save) if target else print_error('Example: aidria xctest "User Authentication"'),
-        "predict": lambda: cmd_predict(target, save) if target else print_error('Example: aidria predict "Refactored Mail compose window"'),
-        "convert": lambda: cmd_convert(target, save) if target else print_error('Example: aidria convert "Users should be able to log in with Face ID"'),
-        "brief":   lambda: cmd_brief(),
-        "help":    lambda: cmd_help(),
-        "--help":  lambda: cmd_help(),
-        "-h":      lambda: cmd_help(),
+        "test":     lambda: cmd_test(target, save) if target else print_error('Example: aidria test "Mail app"'),
+        "audit":    lambda: cmd_audit(target, save) if target else print_error('Example: aidria audit "Safari"'),
+        "feedback": lambda: cmd_feedback(target, save) if target else print_error('Example: aidria feedback "Safari crashes when opening PDF"'),
+        "matrix":   lambda: cmd_matrix(target, save) if target else print_error('Example: aidria matrix "Face ID, Dark Mode"'),
+        "xctest":   lambda: cmd_xctest(target, save) if target else print_error('Example: aidria xctest "User Authentication"'),
+        "predict":  lambda: cmd_predict(target, save) if target else print_error('Example: aidria predict "Refactored Mail compose window"'),
+        "convert":  lambda: cmd_convert(target, save) if target else print_error('Example: aidria convert "Users should be able to log in with Face ID"'),
+        "brief":    lambda: cmd_brief(),
+        "help":     lambda: cmd_help(),
+        "--help":   lambda: cmd_help(),
+        "-h":       lambda: cmd_help(),
     }
 
     action = commands.get(cmd)
