@@ -9,6 +9,8 @@ Usage:
   aidria audit "Safari login screen"
   aidria radar "bug description"
   aidria matrix "feature1, feature2, feature3"
+  aidria xctest "User Authentication"
+  aidria predict "code change description"
   aidria brief
   aidria help
 """
@@ -21,13 +23,14 @@ import subprocess
 import datetime
 import argparse
 import os
+import re
 from typing import Optional
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL = "mistral-nemo:latest"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # ── Colors ─────────────────────────────────────────────────────────────────────
 
@@ -75,7 +78,6 @@ def get_system_info():
 # ── AI Engine ───────────────────────────────────────────────────────────────────
 
 def ask_ai(system_prompt: str, user_message: str, stream: bool = True) -> str:
-    """Call local Ollama AI model."""
     try:
         response = requests.post(
             OLLAMA_URL,
@@ -88,7 +90,7 @@ def ask_ai(system_prompt: str, user_message: str, stream: bool = True) -> str:
                 "stream": stream
             },
             stream=stream,
-            timeout=120
+            timeout=180
         )
 
         if stream:
@@ -114,7 +116,7 @@ def ask_ai(system_prompt: str, user_message: str, stream: bool = True) -> str:
         print(dim("  Start Ollama from your menu bar or run: ollama serve"))
         sys.exit(1)
 
-# ── Banner ──────────────────────────────────────────────────────────────────────
+# ── Banner & UI ─────────────────────────────────────────────────────────────────
 
 def print_banner():
     print(f"""
@@ -143,7 +145,6 @@ def print_error(msg: str):
     print(f"{red('✗')} {msg}")
 
 def save_report(content: str, filename: str) -> str:
-    """Save report to file."""
     reports_dir = os.path.expanduser("~/aidria-reports")
     os.makedirs(reports_dir, exist_ok=True)
     filepath = os.path.join(reports_dir, filename)
@@ -151,10 +152,149 @@ def save_report(content: str, filename: str) -> str:
         f.write(content)
     return filepath
 
+def risk_bar(level: str) -> str:
+    bars = {
+        "Critical": red("██████████ CRITICAL"),
+        "High":     red("████████░░ HIGH"),
+        "Medium":   yellow("█████░░░░░ MEDIUM"),
+        "Low":      green("███░░░░░░░ LOW"),
+        "Minimal":  green("█░░░░░░░░░ MINIMAL")
+    }
+    return bars.get(level, dim("░░░░░░░░░░ UNKNOWN"))
+
 # ── Commands ────────────────────────────────────────────────────────────────────
 
+def cmd_predict(change_description: str, save: bool = False):
+    """Defect Prediction Engine — predicts which areas are most likely to have bugs."""
+    print_banner()
+    print_divider("DEFECT PREDICTION ENGINE")
+
+    system = """You are a world-class Apple QA lead and software engineering expert with 20 years of experience predicting software defects at Apple.
+
+When given a description of code changes, you analyze the change and predict:
+1. Which areas are most likely to contain bugs
+2. The probability and severity of defects in each area
+3. Specific tests that should be run immediately
+4. Hidden dependencies that could cause unexpected failures
+
+Format your response EXACTLY like this:
+
+## Defect Prediction Report
+**Change:** [brief summary of the change]
+**Analysis Date:** [today]
+**Analyst:** AIdria Defect Prediction Engine v1.1.0
+**Overall Risk Level:** [Critical/High/Medium/Low]
+**Confidence Score:** [85]%
+
+---
+
+### Risk Analysis by Area
+
+| Area | Risk Level | Probability | Impact | Reasoning |
+|------|------------|-------------|--------|-----------|
+| [Area 1] | Critical | 90% | Data loss possible | [Why this area is at risk] |
+| [Area 2] | High | 75% | Feature broken | [Why] |
+| [Area 3] | Medium | 45% | Degraded UX | [Why] |
+| [Area 4] | Low | 20% | Minor issue | [Why] |
+
+---
+
+### Critical Test Cases to Run Immediately
+
+These tests MUST pass before releasing this change:
+
+| Priority | Test | Area | Why It Must Run |
+|----------|------|------|-----------------|
+| P1 | [Test name] | [Area] | [Reason] |
+| P1 | [Test name] | [Area] | [Reason] |
+| P2 | [Test name] | [Area] | [Reason] |
+| P2 | [Test name] | [Area] | [Reason] |
+| P3 | [Test name] | [Area] | [Reason] |
+
+---
+
+### Hidden Dependencies & Blast Radius
+
+Areas that could be UNEXPECTEDLY affected by this change:
+
+1. **[Dependency 1]** — [Why it could be affected]
+2. **[Dependency 2]** — [Why it could be affected]
+3. **[Dependency 3]** — [Why it could be affected]
+
+---
+
+### Historical Defect Patterns
+
+Based on similar changes in Apple's codebase history:
+- [Pattern 1 — what tends to break with this type of change]
+- [Pattern 2]
+- [Pattern 3]
+
+---
+
+### Regression Risk Score
+
+| Component | Before Change | After Change | Delta |
+|-----------|---------------|--------------|-------|
+| [Component 1] | Stable | At Risk | +45% |
+| [Component 2] | Stable | Stable | +0% |
+| [Component 3] | At Risk | High Risk | +30% |
+
+---
+
+### QA Recommendation
+
+**Release Confidence:** [X]% — [DO NOT RELEASE / RELEASE WITH CAUTION / SAFE TO RELEASE]
+
+**Minimum testing required before release:**
+- [ ] [Required test 1]
+- [ ] [Required test 2]
+- [ ] [Required test 3]
+- [ ] [Required test 4]
+- [ ] [Required test 5]
+
+**Estimated testing time:** [X hours]
+**Recommended team size:** [X engineers]
+
+---
+
+### Executive Summary
+
+[2-3 sentences summarizing the risk, what to test, and whether to release]"""
+
+    print_step("Analyzing code changes for defect prediction...")
+    print(dim("  Running pattern analysis on change description"))
+    print(dim("  Calculating blast radius and hidden dependencies"))
+    print(dim("  Generating risk scores and test recommendations\n"))
+
+    sysinfo = get_system_info()
+
+    user_message = f"""Analyze this code change and predict defects:
+
+CHANGE DESCRIPTION:
+{change_description}
+
+ENVIRONMENT:
+- Platform: Apple macOS {sysinfo['os_version']}
+- Date: {sysinfo['date']}
+- Analyst: Deandre Medrano
+
+Provide a comprehensive defect prediction with risk scores, specific tests to run, hidden dependencies, and a release recommendation."""
+
+    content = ask_ai(system, user_message)
+
+    if save:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"defect_prediction_{timestamp}.md"
+        filepath = save_report(content, filename)
+        print(f"\n{green('✓')} Prediction report saved to: {bold(filepath)}")
+
+    print_divider()
+    print_success("Defect prediction complete")
+    print(dim("  Tip: Run flagged tests before approving this change for release"))
+
+
 def cmd_test(app_name: str, save: bool = False):
-    """Generate a complete test plan for an Apple app."""
     print_banner()
     print_divider(f"TEST PLAN — {app_name.upper()}")
 
@@ -207,11 +347,9 @@ Generate a comprehensive, professional test plan. Format exactly like this:
 
     print_divider()
     print_success(f"Test plan generated for {app_name}")
-    print(dim(f"  Tip: Run {cyan('aidria radar')} to file a bug report for any failures"))
 
 
 def cmd_audit(target: str, save: bool = False):
-    """Run an accessibility audit."""
     print_banner()
     print_divider(f"ACCESSIBILITY AUDIT — {target.upper()}")
 
@@ -274,7 +412,6 @@ Format exactly like this:
 
 
 def cmd_radar(description: str, save: bool = True):
-    """File a Radar bug report."""
     print_banner()
     print_divider("RADAR BUG REPORT")
 
@@ -337,10 +474,9 @@ ATTACHMENTS NEEDED
 ================================================================================"""
 
     sysinfo = get_system_info()
-
     print_step("Generating Radar bug report...")
     print(dim("  Auto-detecting system environment\n"))
-    print(dim(f"  OS: macOS {sysinfo['os_version']} | Machine: {sysinfo['machine']} | Browser: {sysinfo['browser']}\n"))
+    print(dim(f"  OS: macOS {sysinfo['os_version']} | Machine: {sysinfo['machine']}\n"))
 
     user_message = f"""Generate a Radar bug report for this issue:
 
@@ -359,14 +495,12 @@ Environment:
         filename = f"radar_{timestamp}.txt"
         filepath = save_report(content, filename)
         print(f"\n{green('✓')} Radar saved to: {bold(filepath)}")
-        print(dim("  Ready to paste into Apple Feedback Assistant or Jira"))
 
     print_divider()
     print_success("Radar report filed successfully")
 
 
 def cmd_matrix(features_input: str, save: bool = False):
-    """Build a test matrix for features across Apple devices."""
     print_banner()
     print_divider("TEST MATRIX BUILDER")
 
@@ -420,56 +554,7 @@ Legend: ● Required | ◐ Recommended | ○ Optional | — Not Applicable
     print_success("Test matrix generated")
 
 
-def cmd_brief():
-    """Generate a morning QA briefing."""
-    print_banner()
-    print_divider("MORNING QA BRIEFING")
-
-    system = """You are a senior Apple QA lead giving a morning briefing to your team.
-Generate an inspiring, practical morning QA briefing.
-
-Format like this:
-
-## Morning QA Briefing
-**Date:** [today]
-**Prepared by:** AIdria CLI
-
-### Good Morning, Deandre 👋
-
-### Today's QA Focus Areas
-[3-4 specific areas to focus on today based on common Apple QA priorities]
-
-### Apple QA Best Practices Reminder
-[One practical tip relevant to Apple QA engineering]
-
-### Today's Testing Checklist
-- [ ] [Task 1]
-- [ ] [Task 2]
-- [ ] [Task 3]
-- [ ] [Task 4]
-- [ ] [Task 5]
-
-### Interview Tip of the Day
-[One specific tip for Apple QA interviews]
-
-### Motivational Note
-[One sentence of genuine encouragement]
-
----
-*Generated by AIdria CLI — Private · Local · Secure*"""
-
-    sysinfo = get_system_info()
-    print_step("Generating your morning briefing...")
-    print(dim(f"  {sysinfo['date']}\n"))
-
-    content = ask_ai(system, f"Generate a morning QA briefing for today, {sysinfo['date']}. Deandre is preparing for Apple QA engineering roles.")
-
-    print_divider()
-    print_success("Have a productive day, Deandre!")
-
-
 def cmd_xctest(feature: str, save: bool = False):
-    """Generate XCTest code for a feature."""
     print_banner()
     print_divider(f"XCTEST GENERATOR — {feature.upper()}")
 
@@ -502,7 +587,7 @@ final class [FeatureName]Tests: XCTestCase {
     }
 }
 
-Write complete test functions with proper XCTest assertions. Include UI tests using XCUIApplication. Add comments explaining each test."""
+Write complete test functions with proper XCTest assertions."""
 
     print_step(f"Generating XCTest code for {bold(feature)}...")
     print(dim("  Using Apple's native XCTest framework\n"))
@@ -514,24 +599,70 @@ Write complete test functions with proper XCTest assertions. Include UI tests us
         filename = f"xctest_{feature.lower().replace(' ', '_')}_{timestamp}.swift"
         filepath = save_report(content, filename)
         print(f"\n{green('✓')} XCTest file saved to: {bold(filepath)}")
-        print(dim("  Add this file to your Xcode project to run the tests"))
 
     print_divider()
     print_success(f"XCTest code generated for {feature}")
 
 
+def cmd_brief():
+    print_banner()
+    print_divider("MORNING QA BRIEFING")
+
+    system = """You are a senior Apple QA lead giving a morning briefing.
+Generate an inspiring, practical morning QA briefing.
+
+Format like this:
+
+## Morning QA Briefing
+**Date:** [today]
+**Prepared by:** AIdria CLI
+
+### Good Morning, Deandre 👋
+
+### Today's QA Focus Areas
+[3-4 specific areas to focus on today]
+
+### Apple QA Best Practices Reminder
+[One practical tip]
+
+### Today's Testing Checklist
+- [ ] [Task 1]
+- [ ] [Task 2]
+- [ ] [Task 3]
+- [ ] [Task 4]
+- [ ] [Task 5]
+
+### Interview Tip of the Day
+[One specific tip for Apple QA interviews]
+
+### Motivational Note
+[One sentence of genuine encouragement]
+
+---
+*Generated by AIdria CLI — Private · Local · Secure*"""
+
+    sysinfo = get_system_info()
+    print_step("Generating your morning briefing...")
+    print(dim(f"  {sysinfo['date']}\n"))
+
+    content = ask_ai(system, f"Generate a morning QA briefing for today, {sysinfo['date']}. Deandre is preparing for Apple QA engineering roles.")
+
+    print_divider()
+    print_success("Have a productive day, Deandre!")
+
+
 def cmd_help():
-    """Show help information."""
     print_banner()
     print(f"""  {bold('COMMANDS')}
 
-  {cyan('aidria test')} {yellow('"App Name"')}          Generate a complete test plan
-  {cyan('aidria audit')} {yellow('"Target"')}           Run an accessibility audit
-  {cyan('aidria radar')} {yellow('"Bug description"')}  File a Radar bug report
-  {cyan('aidria matrix')} {yellow('"Feature list"')}    Build a test coverage matrix
-  {cyan('aidria xctest')} {yellow('"Feature"')}         Generate XCTest Swift code
-  {cyan('aidria brief')}                   Get your morning QA briefing
-  {cyan('aidria help')}                    Show this help message
+  {cyan('aidria test')} {yellow('"App Name"')}              Generate a complete test plan
+  {cyan('aidria audit')} {yellow('"Target"')}               Run an accessibility audit
+  {cyan('aidria radar')} {yellow('"Bug description"')}      File a Radar bug report
+  {cyan('aidria matrix')} {yellow('"Feature list"')}        Build a test coverage matrix
+  {cyan('aidria xctest')} {yellow('"Feature"')}             Generate XCTest Swift code
+  {cyan('aidria predict')} {yellow('"Code change"')}        Predict defects from code changes
+  {cyan('aidria brief')}                       Get your morning QA briefing
+  {cyan('aidria help')}                        Show this help message
 
   {bold('OPTIONS')}
 
@@ -545,6 +676,7 @@ def cmd_help():
   {dim('$ aidria radar "Login button unresponsive on iPhone 16"')}
   {dim('$ aidria matrix "Face ID, Push Notifications, Dark Mode"')}
   {dim('$ aidria xctest "User Authentication" --save')}
+  {dim('$ aidria predict "Refactored Mail compose window and updated auth token refresh"')}
   {dim('$ aidria brief')}
 
   {bold('ABOUT')}
@@ -566,49 +698,29 @@ def main():
     )
     parser.add_argument("command", nargs="?", default="help")
     parser.add_argument("target", nargs="?", default="")
-    parser.add_argument("--save", action="store_true", help="Save output to file")
+    parser.add_argument("--save", action="store_true")
 
     args = parser.parse_args()
     cmd = args.command.lower()
     target = args.target
     save = args.save
 
-    if cmd == "test":
-        if not target:
-            print_error("Please specify an app name. Example: aidria test \"Mail app\"")
-            sys.exit(1)
-        cmd_test(target, save)
+    commands = {
+        "test": lambda: cmd_test(target, save) if target else print_error('Please specify an app. Example: aidria test "Mail app"'),
+        "audit": lambda: cmd_audit(target, save) if target else print_error('Please specify a target. Example: aidria audit "Safari"'),
+        "radar": lambda: cmd_radar(target, save) if target else print_error('Please describe the bug. Example: aidria radar "Login button unresponsive"'),
+        "matrix": lambda: cmd_matrix(target, save) if target else print_error('Please list features. Example: aidria matrix "Face ID, Dark Mode"'),
+        "xctest": lambda: cmd_xctest(target, save) if target else print_error('Please specify a feature. Example: aidria xctest "User Authentication"'),
+        "predict": lambda: cmd_predict(target, save) if target else print_error('Please describe the code change. Example: aidria predict "Refactored Mail compose window"'),
+        "brief": lambda: cmd_brief(),
+        "help": lambda: cmd_help(),
+        "--help": lambda: cmd_help(),
+        "-h": lambda: cmd_help(),
+    }
 
-    elif cmd == "audit":
-        if not target:
-            print_error("Please specify a target. Example: aidria audit \"Safari\"")
-            sys.exit(1)
-        cmd_audit(target, save)
-
-    elif cmd == "radar":
-        if not target:
-            print_error("Please describe the bug. Example: aidria radar \"Login button unresponsive\"")
-            sys.exit(1)
-        cmd_radar(target, save)
-
-    elif cmd == "matrix":
-        if not target:
-            print_error("Please list features. Example: aidria matrix \"Face ID, Dark Mode, Push Notifications\"")
-            sys.exit(1)
-        cmd_matrix(target, save)
-
-    elif cmd == "xctest":
-        if not target:
-            print_error("Please specify a feature. Example: aidria xctest \"User Authentication\"")
-            sys.exit(1)
-        cmd_xctest(target, save)
-
-    elif cmd == "brief":
-        cmd_brief()
-
-    elif cmd in ["help", "--help", "-h"]:
-        cmd_help()
-
+    action = commands.get(cmd)
+    if action:
+        action()
     else:
         print_error(f"Unknown command: {cmd}")
         print(dim("  Run 'aidria help' to see available commands"))
